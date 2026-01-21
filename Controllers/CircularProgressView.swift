@@ -3,24 +3,32 @@ import UIKit
 class CircularProgressView: UIView {
 
     private let shapeLayer = CAShapeLayer()
-
-    private var progress: CGFloat = 0 {
-        didSet {
-            shapeLayer.strokeEnd = progress
-        }
-    }
+    private var currentProgress: CGFloat = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        setup()
+        setupLayer()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        setup()
+        setupLayer()
     }
 
-    private func setup() {
+    private func setupLayer() {
+        shapeLayer.strokeColor = UIColor.systemBlue.cgColor
+        shapeLayer.fillColor = UIColor.clear.cgColor
+        shapeLayer.lineWidth = 6
+        shapeLayer.lineCap = .round
+        shapeLayer.strokeEnd = 0
+        layer.addSublayer(shapeLayer)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        guard bounds.width > 0 && bounds.height > 0 else { return }
+        
         let circlePath = UIBezierPath(
             arcCenter: CGPoint(x: bounds.midX, y: bounds.midY),
             radius: min(bounds.width, bounds.height) / 2 - 5,
@@ -28,23 +36,27 @@ class CircularProgressView: UIView {
             endAngle: .pi * 3 / 2,
             clockwise: true
         )
-
+        
+        // Disabilita animazioni implicite durante l'aggiornamento del path
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         shapeLayer.path = circlePath.cgPath
-        shapeLayer.strokeColor = UIColor.systemBlue.cgColor
-        shapeLayer.fillColor = UIColor.clear.cgColor
-        shapeLayer.lineWidth = 6
-        shapeLayer.strokeEnd = 0
-
-        layer.addSublayer(shapeLayer)
+        shapeLayer.strokeEnd = currentProgress  
+        CATransaction.commit()
     }
 
     func setProgress(_ value: CGFloat) {
-        progress = min(max(0, value), 1)
+        currentProgress = min(max(0, value), 1)
+        shapeLayer.strokeEnd = currentProgress
     }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        layer.sublayers?.forEach { $0.removeFromSuperlayer() }
-        setup()
+    
+    func getProgress() -> CGFloat {
+        return currentProgress
+    }
+    
+    func reset() {
+        currentProgress = 0
+        shapeLayer.strokeEnd = 0
     }
 }
+
