@@ -66,7 +66,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         }
     }
 
-    // ✅ FIX: Aggiorna il previewLayer quando cambia la dimensione della view
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.bounds
@@ -213,10 +212,8 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
 
         if stitchedImages.count == expectedShots {
             
-            // ✅ FIX 1: Ferma il motion per evitare nuovi scatti durante lo stitching
             motionManager.stopDeviceMotionUpdates()
             
-            // ✅ FIX 2: Copia l'array per evitare race condition
             let imagesToStitch = self.stitchedImages
             self.stitchedImages.removeAll()
             
@@ -229,7 +226,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
 
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    // ✅ FIX 3: Nome metodo corretto + usa la copia dell'array
                     let panorama = try stitcher.stitchImages(imagesToStitch)
 
                     DispatchQueue.main.async {
@@ -242,7 +238,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
                     DispatchQueue.main.async {
                         self.loadingIndicator.stopAnimating()
                         
-                        // ✅ FIX 4: Mostra alert all'utente invece di solo print
                         let alert = UIAlertController(
                             title: "Errore",
                             message: "Impossibile creare il panorama: \(error.localizedDescription). Riprova.",
@@ -294,6 +289,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return normalizeAngle(b - a)
     }
 }
+
 
 
 
