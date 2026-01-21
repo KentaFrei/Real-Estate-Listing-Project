@@ -16,6 +16,7 @@ final class PropertyDetailViewController: UIViewController {
     private let descriptionLabel = UILabel()
     
     private var collectionView: UICollectionView!
+    private var collectionHeightConstraint: NSLayoutConstraint?
     
     // MARK: - Init
     init(propertyID: Int) {
@@ -33,6 +34,11 @@ final class PropertyDetailViewController: UIViewController {
         setupUI()
         fetchDetails()
         fetchImages()
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateCollectionViewHeight()
     }
     
     // MARK: - Setup UI
@@ -62,8 +68,12 @@ final class PropertyDetailViewController: UIViewController {
         
         // Labels
         titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
+        titleLabel.numberOfLines = 0
+        
         addressLabel.font = .systemFont(ofSize: 16, weight: .regular)
         addressLabel.textColor = .secondaryLabel
+        addressLabel.numberOfLines = 0
+        
         priceLabel.font = .systemFont(ofSize: 20, weight: .semibold)
         priceLabel.textColor = .systemBlue
         
@@ -79,8 +89,6 @@ final class PropertyDetailViewController: UIViewController {
         // CollectionView layout
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
-        layout.itemSize = CGSize(width: view.frame.width/2 - 30, height: 160)
-        layout.sectionInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
         layout.minimumLineSpacing = 12
         layout.minimumInteritemSpacing = 12
         
@@ -90,10 +98,28 @@ final class PropertyDetailViewController: UIViewController {
         collectionView.register(PropertyImageCell.self, forCellWithReuseIdentifier: PropertyImageCell.reuseID)
         collectionView.dataSource = self
         collectionView.delegate = self
-        collectionView.isScrollEnabled = false // scrolla tutta la pagina, non solo la collection
+        collectionView.isScrollEnabled = false
         
         contentStack.addArrangedSubview(collectionView)
-        collectionView.heightAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
+    
+        collectionHeightConstraint = collectionView.heightAnchor.constraint(equalToConstant: 160)
+        collectionHeightConstraint?.isActive = true
+        
+        collectionView.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+    }
+
+    private func updateCollectionViewHeight() {
+        guard imageURLs.count > 0 else {
+            collectionHeightConstraint?.constant = 0
+            return
+        }
+        
+        let itemWidth = (view.frame.width - 40 - 12) / 2  // 40 = padding, 12 = spacing
+        let itemHeight: CGFloat = 160
+        let rows = ceil(Double(imageURLs.count) / 2.0)
+        let totalHeight = CGFloat(rows) * itemHeight + CGFloat(rows - 1) * 12 + 24  // 24 = section insets
+        
+        collectionHeightConstraint?.constant = totalHeight
     }
     
     // MARK: - API Calls
@@ -122,6 +148,7 @@ final class PropertyDetailViewController: UIViewController {
                 DispatchQueue.main.async {
                     self?.imageURLs = urls
                     self?.collectionView.reloadData()
+                    self?.updateCollectionViewHeight()
                 }
             case .failure(let error):
                 DispatchQueue.main.async {
@@ -147,19 +174,36 @@ final class PropertyDetailViewController: UIViewController {
 }
 
 // MARK: - CollectionView
-extension PropertyDetailViewController: UICollectionViewDataSource, UICollectionViewDelegate {
+extension PropertyDetailViewController: UICollectionViewDataSource, UICollectionViewDelegate, UICollectionViewDelegateFlowLayout {
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         imageURLs.count
     }
     
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(
+        guard let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: PropertyImageCell.reuseID,
             for: indexPath
-        ) as! PropertyImageCell
+        ) as? PropertyImageCell else {
+            return UICollectionViewCell()
+        }
         cell.configure(with: imageURLs[indexPath.item])
         return cell
+    }
+    
+    func collectionView(_ collectionView: UICollectionView,
+                        layout collectionViewLayout: UICollectionViewLayout,
+                        sizeForItemAt indexPath: IndexPath) -> CGSize {
+        let spacing: CGFloat = 12
+        let availableWidth = collectionView.bounds.width - spacing
+        let itemWidth = availableWidth / 2
+        return CGSize(width: itemWidth, height: 160)
+    }
+    
+    func collectionView(_ collectionView: UICollectionView,
+                        layout collectionViewLayout: UICollectionViewLayout,
+                        insetForSectionAt section: Int) -> UIEdgeInsets {
+        return UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -175,6 +219,7 @@ final class PropertyImageCell: UICollectionViewCell {
     static let reuseID = "PropertyImageCell"
     
     private let imageView = UIImageView()
+    private let panoramaIcon = UIImageView()
     
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -191,19 +236,41 @@ final class PropertyImageCell: UICollectionViewCell {
         imageView.clipsToBounds = true
         imageView.translatesAutoresizingMaskIntoConstraints = false
         
+        // Icona 360° overlay
+        panoramaIcon.image = UIImage(systemName: "view.360")
+        panoramaIcon.tintColor = .white
+        panoramaIcon.translatesAutoresizingMaskIntoConstraints = false
+        panoramaIcon.layer.shadowColor = UIColor.black.cgColor
+        panoramaIcon.layer.shadowOpacity = 0.5
+        panoramaIcon.layer.shadowOffset = CGSize(width: 0, height: 1)
+        panoramaIcon.layer.shadowRadius = 2
+        
         contentView.addSubview(imageView)
+        contentView.addSubview(panoramaIcon)
+        
         NSLayoutConstraint.activate([
             imageView.topAnchor.constraint(equalTo: contentView.topAnchor),
             imageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             imageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+            imageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            
+            panoramaIcon.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            panoramaIcon.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            panoramaIcon.widthAnchor.constraint(equalToConstant: 24),
+            panoramaIcon.heightAnchor.constraint(equalToConstant: 24)
         ])
     }
     
     func configure(with url: URL) {
         imageView.sd_setImage(with: url, placeholderImage: UIImage(systemName: "photo"))
     }
+    
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        imageView.image = nil
+    }
 }
+
 
 
 
