@@ -8,6 +8,8 @@ final class PanoramaReviewViewController: UIViewController {
     // Viewer 360° (ricicliamo PanoramaViewerViewController internamente)
     private var viewerVC: PanoramaViewerViewController?
     
+    private var tempPanoramaURL: URL?
+    
     private let publishButton: UIButton = {
         let btn = UIButton(type: .system)
         btn.setTitle("✅ Pubblica", for: .normal)
@@ -46,16 +48,21 @@ final class PanoramaReviewViewController: UIViewController {
         setupButtons()
     }
     
+    deinit {
+        cleanupTempFile()
+    }
+    
     // MARK: - Setup Viewer
     private func setupViewer() {
         let viewer = PanoramaViewerViewController()
         viewer.modalPresentationStyle = .overFullScreen
         
-        // 👉 passiamo l’immagine locale
+        // 👉 passiamo l'immagine locale
         if let data = panorama.jpegData(compressionQuality: 0.9) {
             let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_panorama.jpg")
             try? data.write(to: tmpURL)
             viewer.panoramaImageURL = tmpURL
+            self.tempPanoramaURL = tmpURL  // ✅ Salva riferimento per pulizia
         }
         
         addChild(viewer)
@@ -111,7 +118,7 @@ final class PanoramaReviewViewController: UIViewController {
                                                      message: "Il tour è stato caricato correttamente.",
                                                      preferredStyle: .alert)
                         done.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-                            self.dismiss(animated: true)
+                            self.navigationController?.popToRootViewController(animated: true)
                         })
                         self.present(done, animated: true)
                         
@@ -131,6 +138,13 @@ final class PanoramaReviewViewController: UIViewController {
         // 👉 Torna indietro al GuidedCapture per rifare gli scatti
         navigationController?.popViewController(animated: true)
     }
-}
+    
+    // MARK: - Helpers
 
+    private func cleanupTempFile() {
+        if let url = tempPanoramaURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+}
 
