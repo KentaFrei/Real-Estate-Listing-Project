@@ -101,13 +101,13 @@ final class PropertyDetailViewController: UIViewController {
         collectionView.isScrollEnabled = false
         
         contentStack.addArrangedSubview(collectionView)
-    
+        
         collectionHeightConstraint = collectionView.heightAnchor.constraint(equalToConstant: 160)
         collectionHeightConstraint?.isActive = true
         
         collectionView.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
     }
-
+    
     private func updateCollectionViewHeight() {
         guard imageURLs.count > 0 else {
             collectionHeightConstraint?.constant = 0
@@ -270,6 +270,7 @@ final class PropertyImageCell: UICollectionViewCell {
         imageView.image = nil
     }
 }
+
 
 
 
