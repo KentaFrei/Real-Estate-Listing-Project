@@ -34,7 +34,12 @@ struct ImageUploader {
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        APIClient.authorizedRequest(url: url, method: "POST", body: data) { result in
+APIClient.authorizedRequest(
+    url: url,
+    method: "POST",
+    body: data,
+    contentType: "multipart/form-data; boundary=\(boundary)"
+) { result in
             switch result {
             case .success(let responseData):
                 guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
@@ -51,6 +56,7 @@ struct ImageUploader {
         }
     }
 }
+
 
 
 
