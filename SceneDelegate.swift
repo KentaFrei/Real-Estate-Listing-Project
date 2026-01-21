@@ -11,23 +11,25 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         window = UIWindow(windowScene: windowScene)
 
-        // ⚠️ Token statico salvato per test - RIMUOVERE IN PRODUZIONE
-        #if DEBUG
-        let testToken = "c317d24ca043bf52e826c62c00213691a7676618"
-        UserDefaults.standard.set(testToken, forKey: "authToken")
-        print("🔑 Token di test salvato in UserDefaults")
-        #endif
-
-        // Controlla se esiste un token per decidere la schermata iniziale
-        if UserDefaults.standard.string(forKey: "authToken") != nil {
-            window?.rootViewController = MainTabBarController()
-        } else {
-            window?.rootViewController = LoginViewController()
-        }
-        
+        window?.rootViewController = MainTabBarController()
         window?.makeKeyAndVisible()
     }
+    
+    // MARK: - Helper per cambiare root view controller
+    func setRootViewController(_ viewController: UIViewController, animated: Bool = true) {
+        guard let window = window else { return }
+        
+        if animated {
+            UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: {
+                window.rootViewController = viewController
+            })
+        } else {
+            window.rootViewController = viewController
+        }
+        window.makeKeyAndVisible()
+    }
 }
+
 
 
 
