@@ -8,7 +8,7 @@ final class HomeViewController: UIViewController,
     // Lista immobili dal backend
     private var properties: [Property] = []
     
-    // MARK: UI – top filters
+    // MARK: UI — top filters
     private let searchBar: UISearchBar = {
         let sb = UISearchBar()
         sb.placeholder = "Search"
@@ -19,11 +19,23 @@ final class HomeViewController: UIViewController,
     
     private let distanceButton: UIButton = {
         let btn = UIButton(type: .system)
-        btn.setTitle("+ 0 km", for: .normal)
-        btn.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
-        btn.layer.cornerRadius = 10
-        btn.backgroundColor = .secondarySystemBackground
-        btn.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        
+        if #available(iOS 15.0, *) {
+            var config = UIButton.Configuration.filled()
+            config.title = "+ 0 km"
+            config.baseBackgroundColor = .secondarySystemBackground
+            config.baseForegroundColor = .label
+            config.cornerStyle = .medium
+            config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+            btn.configuration = config
+        } else {
+            btn.setTitle("+ 0 km", for: .normal)
+            btn.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
+            btn.layer.cornerRadius = 10
+            btn.backgroundColor = .secondarySystemBackground
+            btn.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+        }
+        
         btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
     }()
@@ -182,7 +194,11 @@ final class HomeViewController: UIViewController,
     private func configureDistanceMenu() {
         let actions: [UIAction] = ["+ 0 km", "+ 1 km", "+ 5 km", "+ 10 km"].map { title in
             UIAction(title: title) { [weak self] _ in
-                self?.distanceButton.setTitle(title, for: .normal)
+                if #available(iOS 15.0, *) {
+                    self?.distanceButton.configuration?.title = title
+                } else {
+                    self?.distanceButton.setTitle(title, for: .normal)
+                }
             }
         }
         distanceButton.menu = UIMenu(title: "", children: actions)
@@ -216,7 +232,13 @@ final class HomeViewController: UIViewController,
             let vc = DashboardViewController()
             self?.navigationController?.pushViewController(vc, animated: true)
         }))
-        alert.addAction(UIAlertAction(title: "Logout", style: .destructive))
+        alert.addAction(UIAlertAction(title: "Logout", style: .destructive, handler: { _ in
+            UserDefaults.standard.removeObject(forKey: "authToken")
+            if let sceneDelegate = UIApplication.shared.connectedScenes.first?.delegate as? SceneDelegate {
+                sceneDelegate.window?.rootViewController = LoginViewController()
+                sceneDelegate.window?.makeKeyAndVisible()
+            }
+        }))
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         
         if let pop = alert.popoverPresentationController, let barButton = navigationItem.rightBarButtonItem {
@@ -247,12 +269,17 @@ final class HomeViewController: UIViewController,
     
     func collectionView(_ collectionView: UICollectionView,
                         cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PropertyCell.reuseID, for: indexPath) as! PropertyCell
+        guard let cell = collectionView.dequeueReusableCell(
+            withReuseIdentifier: PropertyCell.reuseID, 
+            for: indexPath
+        ) as? PropertyCell else {
+            return UICollectionViewCell()
+        }
         cell.configure(with: properties[indexPath.item])
         return cell
     }
     
-    // MARK: FlowLayout – 2 colonne responsive
+    // MARK: FlowLayout — 2 colonne responsive
     func collectionView(_ collectionView: UICollectionView,
                         layout collectionViewLayout: UICollectionViewLayout,
                         sizeForItemAt indexPath: IndexPath) -> CGSize {
@@ -302,11 +329,17 @@ final class PropertyCell: UICollectionViewCell {
         imageView.clipsToBounds = true
         imageView.layer.cornerRadius = 12
         imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.backgroundColor = .secondarySystemBackground
         
         titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        titleLabel.numberOfLines = 1
+        
         subtitleLabel.font = .systemFont(ofSize: 13)
         subtitleLabel.textColor = .secondaryLabel
+        subtitleLabel.numberOfLines = 1
+        
         priceLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        priceLabel.textColor = .systemBlue
         
         let textStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, priceLabel])
         textStack.axis = .vertical
@@ -336,12 +369,18 @@ final class PropertyCell: UICollectionViewCell {
     }
     
     func configure(with property: Property) {
-        imageView.image = UIImage(systemName: "house.fill") // placeholder
+        imageView.image = UIImage(systemName: "house.fill")
         titleLabel.text = property.title
         subtitleLabel.text = property.address
-        priceLabel.text = "€\(property.price)"
+        
+        // Formatta il prezzo
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "it_IT")
+        priceLabel.text = formatter.string(from: NSNumber(value: property.price)) ?? "€\(property.price)"
     }
 }
+
 
 
 
