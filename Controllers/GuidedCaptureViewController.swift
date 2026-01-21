@@ -8,7 +8,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     // MARK: - Properties
     private let captureSession = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
-    private var previewLayer: AVCaptureVideoPreviewLayer?  // ✅ FIX #5: Rimosso implicit unwrap
+    private var previewLayer: AVCaptureVideoPreviewLayer?  
     private let motionManager = CMMotionManager()
     private var referenceYaw: Double?
     private let targetAngleStep = Double.pi / 12 // 15°
@@ -23,7 +23,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     private let propertyID: Int
     private let expectedShots = 24
     
-    // ✅ FIX #14: Threshold configurabile
     private let sharpnessThreshold: Double = 100.0
 
     // 🔄 Spinner per stitching
@@ -35,7 +34,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return spinner
     }()
     
-    // ✅ FIX #7: Contatore scatti visivo
     private let shotCounterLabel: UILabel = {
         let label = UILabel()
         label.textColor = .white
@@ -48,7 +46,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return label
     }()
     
-    // ✅ FIX #8: Pulsante annulla
     private let cancelButton: UIButton = {
         let btn = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 22, weight: .medium)
@@ -191,7 +188,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         ])
     }
     
-    // ✅ FIX #7: Setup contatore scatti
     private func setupShotCounter() {
         view.addSubview(shotCounterLabel)
         NSLayoutConstraint.activate([
@@ -202,7 +198,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         ])
     }
     
-    // ✅ FIX #8: Setup pulsante annulla
     private func setupCancelButton() {
         view.addSubview(cancelButton)
         NSLayoutConstraint.activate([
@@ -278,7 +273,6 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
             return
         }
 
-        // ✅ FIX #14: Usa threshold configurabile
         if !IsImageSharp(image, sharpnessThreshold) {
             if retryCount < 2 {
                 retryCount += 1
@@ -399,6 +393,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return normalizeAngle(b - a)
     }
 }
+
 
 
 
