@@ -14,7 +14,7 @@ final class NewPropertyViewController: UIViewController {
         view.layer.borderColor = UIColor.lightGray.cgColor
         view.layer.cornerRadius = 8
         view.font = .systemFont(ofSize: 16)
-        view.heightAnchor.constraint(equalToConstant: 120).isActive = true
+        view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
     
@@ -39,8 +39,15 @@ final class NewPropertyViewController: UIViewController {
         button.backgroundColor = .systemBlue
         button.layer.cornerRadius = 12
         button.titleLabel?.font = .boldSystemFont(ofSize: 18)
-        button.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        button.translatesAutoresizingMaskIntoConstraints = false
         return button
+    }()
+    
+    private let spinner: UIActivityIndicatorView = {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.hidesWhenStopped = true
+        spinner.color = .white
+        return spinner
     }()
     
     // MARK: - Lifecycle
@@ -50,12 +57,14 @@ final class NewPropertyViewController: UIViewController {
         title = "Nuova Proprietà"
         
         setupLayout()
+        setupKeyboardDismiss()
         continueButton.addTarget(self, action: #selector(handleSave), for: .touchUpInside)
     }
     
     // MARK: - Layout
     private func setupLayout() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.keyboardDismissMode = .onDrag
         view.addSubview(scrollView)
         
         contentStack.axis = .vertical
@@ -64,16 +73,17 @@ final class NewPropertyViewController: UIViewController {
         contentStack.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(contentStack)
         
+        // ✅ FIX #47: Constraint corretti per lo scroll view
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             
             contentStack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 20),
-            contentStack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
+            contentStack.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor, constant: 20),
+            contentStack.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: -20),
+            contentStack.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor, constant: -20),
             contentStack.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -40)
         ])
         
@@ -84,6 +94,7 @@ final class NewPropertyViewController: UIViewController {
         // Descrizione
         contentStack.addArrangedSubview(NewPropertyViewController.makeLabel("Descrizione"))
         contentStack.addArrangedSubview(descriptionField)
+        descriptionField.heightAnchor.constraint(equalToConstant: 120).isActive = true
         
         // Categoria
         contentStack.addArrangedSubview(categoryLabel)
@@ -97,12 +108,30 @@ final class NewPropertyViewController: UIViewController {
         contentStack.addArrangedSubview(NewPropertyViewController.makeLabel("Prezzo"))
         contentStack.addArrangedSubview(priceField)
         
+        // Spacer
+        let spacer = UIView()
+        spacer.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        contentStack.addArrangedSubview(spacer)
+        
         // Bottone
         contentStack.addArrangedSubview(continueButton)
+        continueButton.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    }
+    
+    private func setupKeyboardDismiss() {
+        let tap = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
+    }
+    
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
     }
     
     // MARK: - Actions
     @objc private func handleSave() {
+        dismissKeyboard()
+        
         guard let title = titleField.text, !title.isEmpty,
               let description = descriptionField.text, !description.isEmpty,
               let address = addressField.text, !address.isEmpty,
@@ -113,22 +142,46 @@ final class NewPropertyViewController: UIViewController {
         
         let category = categorySegment.titleForSegment(at: categorySegment.selectedSegmentIndex) ?? "Altro"
         
+        // Mostra stato loading
+        setLoadingState(true)
+        
         PropertyAPI.createProperty(title: title,
                                    description: description,
                                    category: category,
                                    address: address,
-                                   price: price) { result in
+                                   price: price) { [weak self] result in
             DispatchQueue.main.async {
+                self?.setLoadingState(false)
+                
                 switch result {
                 case .success(let propertyID):
                     print("✅ Proprietà salvata con ID: \(propertyID)")
                     let guidedVC = GuidedCaptureViewController(propertyID: propertyID)
-                    self.navigationController?.pushViewController(guidedVC, animated: true)
+                    self?.navigationController?.pushViewController(guidedVC, animated: true)
                     
                 case .failure(let error):
-                    self.showAlert(title: "Errore", message: error.localizedDescription)
+                    self?.showAlert(title: "Errore", message: error.localizedDescription)
                 }
             }
+        }
+    }
+    
+    private func setLoadingState(_ loading: Bool) {
+        continueButton.isEnabled = !loading
+        
+        if loading {
+            continueButton.setTitle("", for: .normal)
+            spinner.translatesAutoresizingMaskIntoConstraints = false
+            continueButton.addSubview(spinner)
+            NSLayoutConstraint.activate([
+                spinner.centerXAnchor.constraint(equalTo: continueButton.centerXAnchor),
+                spinner.centerYAnchor.constraint(equalTo: continueButton.centerYAnchor)
+            ])
+            spinner.startAnimating()
+        } else {
+            spinner.stopAnimating()
+            spinner.removeFromSuperview()
+            continueButton.setTitle("Scatta Foto 360°", for: .normal)
         }
     }
     
@@ -137,6 +190,7 @@ final class NewPropertyViewController: UIViewController {
         let field = UITextField()
         field.placeholder = placeholder
         field.borderStyle = .roundedRect
+        field.translatesAutoresizingMaskIntoConstraints = false
         field.heightAnchor.constraint(equalToConstant: 44).isActive = true
         return field
     }
