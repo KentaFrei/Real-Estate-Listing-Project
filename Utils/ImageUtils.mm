@@ -61,21 +61,18 @@ void UIImageToMat(UIImage *image, void *matPtr, bool alpha) {
 
     cv::Mat tmp((int)size.height, (int)size.width, CV_8UC4, data);
 
-    // ✅ Copia sicura e libera memoria CoreGraphics
     mat = tmp.clone();
 
     CGContextRelease(contextRef);
     CGColorSpaceRelease(colorSpace);
     free(data);
 
-    // ✅ Conversione a BGR o BGRA (default per OpenCV)
     if (!alpha) {
         cv::cvtColor(mat, mat, cv::COLOR_RGBA2BGR);
     } else {
         cv::cvtColor(mat, mat, cv::COLOR_RGBA2BGRA);
     }
 
-    // ✅ Resize automatico (max lato 3000px per risparmiare RAM)
     mat = resizeIfNeeded(mat, 3000);
 }
 
@@ -103,7 +100,6 @@ UIImage * MatToUIImage(const void *matPtr) {
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGDataProviderRef provider = CGDataProviderCreateWithCFData((CFDataRef)data);
 
-    // ✅ FIX #13: Controllo errore e cleanup
     if (!colorSpace || !provider) {
         if (colorSpace) CGColorSpaceRelease(colorSpace);
         if (provider) CGDataProviderRelease(provider);
@@ -117,7 +113,6 @@ UIImage * MatToUIImage(const void *matPtr) {
         provider, NULL, false, kCGRenderingIntentDefault
     );
 
-    // ✅ FIX #13: Cleanup anche se CGImageCreate fallisce
     if (!imageRef) {
         CGDataProviderRelease(provider);
         CGColorSpaceRelease(colorSpace);
@@ -135,7 +130,6 @@ UIImage * MatToUIImage(const void *matPtr) {
     return finalImage;
 }
 
-/// ✅ Controllo nitidezza con varianza del Laplaciano
 BOOL IsImageSharp(UIImage *image, double threshold) {
     if (!image) return NO;
 
@@ -160,6 +154,7 @@ BOOL IsImageSharp(UIImage *image, double threshold) {
 
     return stddev[0] > threshold;
 }
+
 
 
 
