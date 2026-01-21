@@ -6,7 +6,7 @@ enum APIClient {
         url: URL,
         method: String = "GET",
         body: Data? = nil,
-        contentType: String? = nil,  // ✅ NUOVO: permette Content-Type custom
+        contentType: String? = nil,  // ✅ NUOVO: permette Content-Type custom (es. multipart/form-data)
         completion: @escaping (Result<Data, Error>) -> Void
     ) {
         var request = URLRequest(url: url)
@@ -21,7 +21,7 @@ enum APIClient {
         
         request.httpBody = body
 
-        // ✅ Se esiste un token, usalo
+        // ✅ Se esiste un token, usalo. Altrimenti fai la richiesta senza.
         if let token = UserDefaults.standard.string(forKey: "authToken") {
             request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
         } else {
@@ -75,6 +75,7 @@ func logoutAndReturnToLogin() {
         }
     }
 }
+
 
 
 
