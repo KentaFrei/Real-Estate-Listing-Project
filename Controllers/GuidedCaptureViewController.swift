@@ -59,9 +59,17 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         if !captureSession.isRunning {
-            captureSession.startRunning()
+            DispatchQueue.global(qos: .userInitiated).async {
+                self.captureSession.startRunning()
+            }
             startMotionUpdates()
         }
+    }
+
+    // ✅ FIX: Aggiorna il previewLayer quando cambia la dimensione della view
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
     }
 
     // MARK: - Setup
@@ -204,6 +212,14 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         stitchedImages.append(image)
 
         if stitchedImages.count == expectedShots {
+            
+            // ✅ FIX 1: Ferma il motion per evitare nuovi scatti durante lo stitching
+            motionManager.stopDeviceMotionUpdates()
+            
+            // ✅ FIX 2: Copia l'array per evitare race condition
+            let imagesToStitch = self.stitchedImages
+            self.stitchedImages.removeAll()
+            
             let stitcher = ImageStitcher()
             stitcher.panoConfidenceThresh = 0.8
             stitcher.blendingStrength = 8
@@ -213,7 +229,8 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
 
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let panorama = try stitcher.stitch(self.stitchedImages)
+                    // ✅ FIX 3: Nome metodo corretto + usa la copia dell'array
+                    let panorama = try stitcher.stitchImages(imagesToStitch)
 
                     DispatchQueue.main.async {
                         self.loadingIndicator.stopAnimating()
@@ -224,12 +241,24 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
                 } catch {
                     DispatchQueue.main.async {
                         self.loadingIndicator.stopAnimating()
+                        
+                        // ✅ FIX 4: Mostra alert all'utente invece di solo print
+                        let alert = UIAlertController(
+                            title: "Errore",
+                            message: "Impossibile creare il panorama: \(error.localizedDescription). Riprova.",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+                            // Riavvia il motion per permettere un nuovo tentativo
+                            self.referenceYaw = nil
+                            self.startMotionUpdates()
+                        })
+                        self.present(alert, animated: true)
+                        
                         print("❌ Errore stitching: \(error.localizedDescription)")
                     }
                 }
             }
-
-            stitchedImages.removeAll()
         }
     }
 
@@ -265,6 +294,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return normalizeAngle(b - a)
     }
 }
+
 
 
 
