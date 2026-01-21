@@ -103,6 +103,13 @@ UIImage * MatToUIImage(const void *matPtr) {
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
     CGDataProviderRef provider = CGDataProviderCreateWithCFData((CFDataRef)data);
 
+    // ✅ FIX #13: Controllo errore e cleanup
+    if (!colorSpace || !provider) {
+        if (colorSpace) CGColorSpaceRelease(colorSpace);
+        if (provider) CGDataProviderRelease(provider);
+        return nil;
+    }
+
     CGImageRef imageRef = CGImageCreate(
         rgbaMat.cols, rgbaMat.rows,
         8, 32, rgbaMat.step[0],
@@ -110,7 +117,16 @@ UIImage * MatToUIImage(const void *matPtr) {
         provider, NULL, false, kCGRenderingIntentDefault
     );
 
-    UIImage *finalImage = [UIImage imageWithCGImage:imageRef scale:UIScreen.mainScreen.scale orientation:UIImageOrientationUp];
+    // ✅ FIX #13: Cleanup anche se CGImageCreate fallisce
+    if (!imageRef) {
+        CGDataProviderRelease(provider);
+        CGColorSpaceRelease(colorSpace);
+        return nil;
+    }
+
+    UIImage *finalImage = [UIImage imageWithCGImage:imageRef 
+                                              scale:UIScreen.mainScreen.scale 
+                                        orientation:UIImageOrientationUp];
 
     CGImageRelease(imageRef);
     CGDataProviderRelease(provider);
@@ -144,6 +160,8 @@ BOOL IsImageSharp(UIImage *image, double threshold) {
 
     return stddev[0] > threshold;
 }
+
+
 
 
 
