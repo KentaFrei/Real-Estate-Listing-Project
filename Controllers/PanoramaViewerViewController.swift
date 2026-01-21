@@ -3,10 +3,14 @@ import SceneKit
 
 class PanoramaViewerViewController: UIViewController {
     
+    // MARK: - Properties
     private var sceneView: SCNView!
     private var cameraNode = SCNNode()
     
     var panoramaImageURL: URL?
+    
+    /// ✅ FIX #18: Configurabile per nascondere il pulsante quando embedded
+    var showCloseButton: Bool = true
     
     private let loadingIndicator: UIActivityIndicatorView = {
         let spinner = UIActivityIndicatorView(style: .large)
@@ -16,20 +20,28 @@ class PanoramaViewerViewController: UIViewController {
         return spinner
     }()
     
+    private var closeButton: UIButton?
+    
+    // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
         setupScene()
         setupCamera()
-        addCloseButton()
         setupLoadingIndicator()
+        
+        if showCloseButton {
+            addCloseButton()
+        }
+        
         loadPanoramaFromURL()
     }
     
+    // MARK: - Setup
     private func setupScene() {
         sceneView = SCNView(frame: view.bounds)
         sceneView.scene = SCNScene()
-        sceneView.allowsCameraControl = true  // touch-based rotazione
+        sceneView.allowsCameraControl = true
         sceneView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         sceneView.backgroundColor = .black
         view.addSubview(sceneView)
@@ -52,21 +64,69 @@ class PanoramaViewerViewController: UIViewController {
         loadingIndicator.startAnimating()
     }
     
+    // ✅ FIX #16: Usa Data(contentsOf:) per file locali invece di URLSession
     private func loadPanoramaFromURL() {
-        guard let url = panoramaImageURL else { return }
+        guard let url = panoramaImageURL else {
+            loadingIndicator.stopAnimating()
+            showError("Nessun URL panorama specificato.")
+            return
+        }
         
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
-            DispatchQueue.main.async {
-                self.loadingIndicator.stopAnimating()
+        // Determina se è un file locale o remoto
+        if url.isFileURL {
+            loadLocalFile(url: url)
+        } else {
+            loadRemoteFile(url: url)
+        }
+    }
+    
+    private func loadLocalFile(url: URL) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                let data = try Data(contentsOf: url)
+                guard let image = UIImage(data: data) else {
+                    DispatchQueue.main.async {
+                        self?.loadingIndicator.stopAnimating()
+                        self?.showError("Impossibile decodificare l'immagine.")
+                    }
+                    return
+                }
+                
+                DispatchQueue.main.async {
+                    self?.loadingIndicator.stopAnimating()
+                    self?.applyPanoramaTexture(image: image)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.loadingIndicator.stopAnimating()
+                    self?.showError("Errore nel caricamento: \(error.localizedDescription)")
+                }
             }
-            if let data = data, let image = UIImage(data: data) {
+        }
+    }
+    
+    private func loadRemoteFile(url: URL) {
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                self?.loadingIndicator.stopAnimating()
+            }
+            
+            if let error = error {
                 DispatchQueue.main.async {
-                    self.applyPanoramaTexture(image: image)
+                    self?.showError("Errore di rete: \(error.localizedDescription)")
                 }
-            } else {
+                return
+            }
+            
+            guard let data = data, let image = UIImage(data: data) else {
                 DispatchQueue.main.async {
-                    self.showError("Errore nel caricamento immagine.")
+                    self?.showError("Errore nel caricamento immagine.")
                 }
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self?.applyPanoramaTexture(image: image)
             }
         }
         task.resume()
@@ -88,36 +148,57 @@ class PanoramaViewerViewController: UIViewController {
     
     private func addCloseButton() {
         let buttonSize: CGFloat = 40
-        let closeButton = UIButton(type: .system)
+        let button = UIButton(type: .system)
         
         let config = UIImage.SymbolConfiguration(pointSize: 22, weight: .medium)
         let closeImage = UIImage(systemName: "xmark.circle.fill", withConfiguration: config)
-        closeButton.setImage(closeImage, for: .normal)
-        closeButton.tintColor = .white
-        closeButton.backgroundColor = UIColor.black.withAlphaComponent(0.3)
-        closeButton.layer.cornerRadius = buttonSize / 2
-        closeButton.clipsToBounds = true
+        button.setImage(closeImage, for: .normal)
+        button.tintColor = .white
+        button.backgroundColor = UIColor.black.withAlphaComponent(0.3)
+        button.layer.cornerRadius = buttonSize / 2
+        button.clipsToBounds = true
+        button.translatesAutoresizingMaskIntoConstraints = false
         
-        closeButton.frame = CGRect(x: view.bounds.width - buttonSize - 20,
-                                   y: 50,
-                                   width: buttonSize,
-                                   height: buttonSize)
-        closeButton.autoresizingMask = [.flexibleLeftMargin, .flexibleBottomMargin]
-        closeButton.addTarget(self, action: #selector(closeViewer), for: .touchUpInside)
+        button.addTarget(self, action: #selector(closeViewer), for: .touchUpInside)
         
-        view.addSubview(closeButton)
+        view.addSubview(button)
+        
+        NSLayoutConstraint.activate([
+            button.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            button.widthAnchor.constraint(equalToConstant: buttonSize),
+            button.heightAnchor.constraint(equalToConstant: buttonSize)
+        ])
+        
+        self.closeButton = button
     }
     
     @objc private func closeViewer() {
-        dismiss(animated: true)
+        // Se presentato modalmente, dismetti
+        if presentingViewController != nil {
+            dismiss(animated: true)
+        } else if let nav = navigationController {
+            // Se in navigation stack, pop
+            nav.popViewController(animated: true)
+        } else if let parent = parent {
+            // Se child VC, rimuovi
+            willMove(toParent: nil)
+            view.removeFromSuperview()
+            removeFromParent()
+        }
     }
     
     private func showError(_ message: String) {
-        let alert = UIAlertController(title: "Errore",
-                                      message: message,
-                                      preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        let alert = UIAlertController(
+            title: "Errore",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+            self?.closeViewer()
+        })
         present(alert, animated: true)
     }
 }
+
 
