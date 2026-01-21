@@ -18,7 +18,6 @@ final class DashboardViewController: UIViewController {
         b.setTitleColor(.white, for: .normal)
         b.layer.cornerRadius = 12
         b.translatesAutoresizingMaskIntoConstraints = false
-        b.heightAnchor.constraint(equalToConstant: 52).isActive = true
         return b
     }()
 
@@ -47,6 +46,7 @@ final class DashboardViewController: UIViewController {
             addPropertyButton.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
             addPropertyButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             addPropertyButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            addPropertyButton.heightAnchor.constraint(equalToConstant: 52),
 
             propertiesCard.topAnchor.constraint(equalTo: addPropertyButton.bottomAnchor, constant: 28),
             propertiesCard.leadingAnchor.constraint(equalTo: addPropertyButton.leadingAnchor),
