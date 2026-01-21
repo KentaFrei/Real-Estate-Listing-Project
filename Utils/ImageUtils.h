@@ -14,8 +14,11 @@ void UIImageToMat(UIImage *image, void *matPtr, bool alpha);
 UIImage * _Nullable MatToUIImage(const void *matPtr);
 
 /// Verifica la nitidezza di una UIImage usando la varianza del Laplaciano.
-/// Ritorna true se l’immagine è abbastanza nitida.
+/// Ritorna true se l'immagine è abbastanza nitida.
+/// @param image L'immagine da verificare
+/// @param threshold Soglia minima di varianza (default consigliato: 100.0)
 BOOL IsImageSharp(UIImage *image, double threshold);
 
 NS_ASSUME_NONNULL_END
+
 
