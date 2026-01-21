@@ -13,7 +13,7 @@
 #import "core.hpp"
 
 @implementation ImageStitcher {
-    cv::Ptr<cv::Stitcher> _stitcher; // 🔧 miglioramento 2: reuse dello stitcher
+    cv::Ptr<cv::Stitcher> _stitcher;
 }
 
 - (instancetype)init {
@@ -23,7 +23,6 @@
         _blendingStrength = 8.0;
         _waveCorrection = YES;
 
-        // 🔧 miglioramento 2: inizializza lo stitcher una sola volta
         _stitcher = cv::Stitcher::create(cv::Stitcher::PANORAMA);
     }
     return self;
@@ -65,7 +64,7 @@
     _stitcher->setWaveCorrection(self.waveCorrection);
     _stitcher->setWaveCorrectKind(cv::detail::WAVE_CORRECT_HORIZ);
 
-    // Exposure compensator 🔧 miglioramento 5
+    // Exposure compensator
     {
         auto compensator = cv::makePtr<cv::detail::BlocksGainCompensator>();
         _stitcher->setExposureCompensator(compensator);
@@ -75,7 +74,7 @@
     _stitcher->setSeamFinder(cv::makePtr<cv::detail::GraphCutSeamFinder>(
         cv::detail::GraphCutSeamFinderBase::COST_COLOR));
 
-    // Blender 🔧 miglioramento 3: livelli qualità al posto di valore libero
+    // Blender - livelli qualità basati su blendingStrength
     {
         cv::Ptr<cv::detail::Blender> blender =
             cv::detail::Blender::createDefault(cv::detail::Blender::MULTI_BAND, false);
@@ -141,7 +140,7 @@
     cv::Canny(gray, edges, 50, 150);
 
     std::vector<cv::Vec2f> lines;
-    cv::HoughLines(edges, lines, 1, CV_PI/180, 250); // 🔧 miglioramento 1: CV_PI moderno
+    cv::HoughLines(edges, lines, 1, CV_PI/180, 250);
 
     double angleSum = 0;
     int count = 0;
@@ -164,6 +163,7 @@
 }
 
 @end
+
 
 
 
