@@ -5,9 +5,10 @@ import CoreImage
 
 class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelegate {
 
+    // MARK: - Properties
     private let captureSession = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
-    private var previewLayer: AVCaptureVideoPreviewLayer!
+    private var previewLayer: AVCaptureVideoPreviewLayer?  // ✅ FIX #5: Rimosso implicit unwrap
     private let motionManager = CMMotionManager()
     private var referenceYaw: Double?
     private let targetAngleStep = Double.pi / 12 // 15°
@@ -19,8 +20,11 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     private let ghostPreview = UIImageView()
 
     private var stitchedImages: [UIImage] = []
-    private let propertyID: Int   // 🔒 obbligatorio
+    private let propertyID: Int
     private let expectedShots = 24
+    
+    // ✅ FIX #14: Threshold configurabile
+    private let sharpnessThreshold: Double = 100.0
 
     // 🔄 Spinner per stitching
     private let loadingIndicator: UIActivityIndicatorView = {
@@ -30,8 +34,34 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         spinner.translatesAutoresizingMaskIntoConstraints = false
         return spinner
     }()
+    
+    // ✅ FIX #7: Contatore scatti visivo
+    private let shotCounterLabel: UILabel = {
+        let label = UILabel()
+        label.textColor = .white
+        label.font = .boldSystemFont(ofSize: 20)
+        label.textAlignment = .center
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        label.layer.cornerRadius = 8
+        label.clipsToBounds = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+    
+    // ✅ FIX #8: Pulsante annulla
+    private let cancelButton: UIButton = {
+        let btn = UIButton(type: .system)
+        let config = UIImage.SymbolConfiguration(pointSize: 22, weight: .medium)
+        let closeImage = UIImage(systemName: "xmark.circle.fill", withConfiguration: config)
+        btn.setImage(closeImage, for: .normal)
+        btn.tintColor = .white
+        btn.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+        btn.layer.cornerRadius = 20
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        return btn
+    }()
 
-    // ✅ Init sicuro: obbliga a passare propertyID
+    // MARK: - Init
     init(propertyID: Int) {
         self.propertyID = propertyID
         super.init(nibName: nil, bundle: nil)
@@ -41,13 +71,16 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         fatalError("init(coder:) non implementato, usa init(propertyID:)")
     }
 
+    // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         setupLoadingIndicator()
+        setupShotCounter()
+        setupCancelButton()
         checkPermissionsAndSetup()
+        updateShotCounter()
 
-        // 🔍 Debug log per conferma
         print("📌 GuidedCaptureViewController avviato con propertyID =", propertyID)
     }
 
@@ -89,10 +122,13 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
 
     private func setupCaptureSession() {
         captureSession.beginConfiguration()
+        
         guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            captureSession.commitConfiguration()
             showCameraErrorAlert()
             return
         }
+        
         do {
             let input = try AVCaptureDeviceInput(device: camera)
             if captureSession.canAddInput(input) {
@@ -102,32 +138,49 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
                 captureSession.addOutput(photoOutput)
             }
 
-            previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-            previewLayer.frame = view.bounds
-            previewLayer.videoGravity = .resizeAspectFill
-            view.layer.insertSublayer(previewLayer, at: 0)
+            let preview = AVCaptureVideoPreviewLayer(session: captureSession)
+            preview.frame = view.bounds
+            preview.videoGravity = .resizeAspectFill
+            view.layer.insertSublayer(preview, at: 0)
+            self.previewLayer = preview
 
             captureSession.commitConfiguration()
+            
             DispatchQueue.global(qos: .userInitiated).async {
                 self.captureSession.startRunning()
             }
             startMotionUpdates()
         } catch {
+            captureSession.commitConfiguration()
             showCameraErrorAlert()
         }
     }
 
     private func setupUI() {
-        ghostPreview.frame = view.bounds
+        view.backgroundColor = .black
+        
         ghostPreview.contentMode = .scaleAspectFill
         ghostPreview.alpha = 0.25
         ghostPreview.isUserInteractionEnabled = false
-        ghostPreview.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        ghostPreview.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(ghostPreview)
+        
+        NSLayoutConstraint.activate([
+            ghostPreview.topAnchor.constraint(equalTo: view.topAnchor),
+            ghostPreview.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            ghostPreview.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            ghostPreview.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
 
-        progressCircle.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
-        progressCircle.center = view.center
+        progressCircle.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(progressCircle)
+        
+        NSLayoutConstraint.activate([
+            progressCircle.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            progressCircle.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            progressCircle.widthAnchor.constraint(equalToConstant: 100),
+            progressCircle.heightAnchor.constraint(equalToConstant: 100)
+        ])
     }
 
     private func setupLoadingIndicator() {
@@ -136,6 +189,47 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
             loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
+    }
+    
+    // ✅ FIX #7: Setup contatore scatti
+    private func setupShotCounter() {
+        view.addSubview(shotCounterLabel)
+        NSLayoutConstraint.activate([
+            shotCounterLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            shotCounterLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            shotCounterLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
+            shotCounterLabel.heightAnchor.constraint(equalToConstant: 36)
+        ])
+    }
+    
+    // ✅ FIX #8: Setup pulsante annulla
+    private func setupCancelButton() {
+        view.addSubview(cancelButton)
+        NSLayoutConstraint.activate([
+            cancelButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+            cancelButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            cancelButton.widthAnchor.constraint(equalToConstant: 40),
+            cancelButton.heightAnchor.constraint(equalToConstant: 40)
+        ])
+        cancelButton.addTarget(self, action: #selector(handleCancel), for: .touchUpInside)
+    }
+    
+    @objc private func handleCancel() {
+        let alert = UIAlertController(
+            title: "Annullare la cattura?",
+            message: "Le foto scattate andranno perse.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Continua", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Annulla", style: .destructive) { [weak self] _ in
+            self?.stopSessionAndMotion()
+            self?.navigationController?.popViewController(animated: true)
+        })
+        present(alert, animated: true)
+    }
+    
+    private func updateShotCounter() {
+        shotCounterLabel.text = "  \(stitchedImages.count)/\(expectedShots)  "
     }
 
     // MARK: - Motion
@@ -151,7 +245,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
 
             let delta = self.angleDifference(attitude.yaw, self.nextTargetAngle)
             let progress = min(1.0, max(0.0, 1.0 - abs(delta) / (self.targetAngleStep)))
-            self.progressCircle.setProgress(progress)
+            self.progressCircle.setProgress(CGFloat(progress))
 
             if abs(delta) < 0.05 && !self.isCapturing {
                 self.isCapturing = true
@@ -184,7 +278,8 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
             return
         }
 
-        if !IsImageSharp(image, 100.0) {
+        // ✅ FIX #14: Usa threshold configurabile
+        if !IsImageSharp(image, sharpnessThreshold) {
             if retryCount < 2 {
                 retryCount += 1
                 print("⚠️ Foto sfocata, retry #\(retryCount)")
@@ -209,6 +304,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     // MARK: - Stitching
     private func processImageForStitching(_ image: UIImage) {
         stitchedImages.append(image)
+        updateShotCounter()
 
         if stitchedImages.count == expectedShots {
             
@@ -222,7 +318,9 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
             stitcher.blendingStrength = 8
             stitcher.waveCorrection = true
 
-            loadingIndicator.startAnimating() // 👉 Mostra spinner
+            loadingIndicator.startAnimating()
+            progressCircle.isHidden = true
+            shotCounterLabel.isHidden = true
 
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
@@ -237,6 +335,8 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
                 } catch {
                     DispatchQueue.main.async {
                         self.loadingIndicator.stopAnimating()
+                        self.progressCircle.isHidden = false
+                        self.shotCounterLabel.isHidden = false
                         
                         let alert = UIAlertController(
                             title: "Errore",
@@ -244,8 +344,8 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
                             preferredStyle: .alert
                         )
                         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-                            // Riavvia il motion per permettere un nuovo tentativo
                             self.referenceYaw = nil
+                            self.updateShotCounter()
                             self.startMotionUpdates()
                         })
                         self.present(alert, animated: true)
@@ -264,16 +364,26 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
     }
 
     private func showPermissionDeniedAlert() {
-        let alert = UIAlertController(title: "Permessi necessari", message: "Abilita la fotocamera nelle impostazioni.", preferredStyle: .alert)
+        let alert = UIAlertController(
+            title: "Permessi necessari",
+            message: "Abilita la fotocamera nelle impostazioni.",
+            preferredStyle: .alert
+        )
         alert.addAction(UIAlertAction(title: "Apri Impostazioni", style: .default) { _ in
-            UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
         })
         alert.addAction(UIAlertAction(title: "Annulla", style: .cancel))
         present(alert, animated: true)
     }
 
     private func showCameraErrorAlert() {
-        let alert = UIAlertController(title: "Errore fotocamera", message: "Impossibile accedere alla fotocamera.", preferredStyle: .alert)
+        let alert = UIAlertController(
+            title: "Errore fotocamera",
+            message: "Impossibile accedere alla fotocamera.",
+            preferredStyle: .alert
+        )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
     }
@@ -289,6 +399,7 @@ class GuidedCaptureViewController: UIViewController, AVCapturePhotoCaptureDelega
         return normalizeAngle(b - a)
     }
 }
+
 
 
 
