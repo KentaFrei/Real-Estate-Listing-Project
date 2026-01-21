@@ -6,18 +6,22 @@ enum APIClient {
         url: URL,
         method: String = "GET",
         body: Data? = nil,
+        contentType: String? = nil,  // ✅ NUOVO: permette Content-Type custom
         completion: @escaping (Result<Data, Error>) -> Void
     ) {
         var request = URLRequest(url: url)
         request.httpMethod = method
 
-        // Se il body è JSON, setta Content-Type
-        if body != nil && request.value(forHTTPHeaderField: "Content-Type") == nil {
+        // ✅ Usa Content-Type custom se fornito, altrimenti default a JSON
+        if let customContentType = contentType {
+            request.setValue(customContentType, forHTTPHeaderField: "Content-Type")
+        } else if body != nil {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
+        
         request.httpBody = body
 
-        // ✅ Se esiste un token, usalo. Altrimenti fai la richiesta senza.
+        // ✅ Se esiste un token, usalo
         if let token = UserDefaults.standard.string(forKey: "authToken") {
             request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
         } else {
@@ -61,7 +65,7 @@ func logoutAndReturnToLogin() {
 
         let alert = UIAlertController(
             title: "Sessione scaduta",
-            message: "La sessione è terminata. Effettua di nuovo l’accesso.",
+            message: "La sessione è terminata. Effettua di nuovo l'accesso.",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -71,6 +75,7 @@ func logoutAndReturnToLogin() {
         }
     }
 }
+
 
 
 
