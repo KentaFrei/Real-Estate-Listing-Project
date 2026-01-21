@@ -2,12 +2,11 @@ import UIKit
 
 final class PanoramaReviewViewController: UIViewController {
     
+    // MARK: - Properties
     private let propertyID: Int
     private let panorama: UIImage
     
-    // Viewer 360° (ricicliamo PanoramaViewerViewController internamente)
     private var viewerVC: PanoramaViewerViewController?
-    
     private var tempPanoramaURL: URL?
     
     private let publishButton: UIButton = {
@@ -17,7 +16,7 @@ final class PanoramaReviewViewController: UIViewController {
         btn.backgroundColor = .systemGreen
         btn.layer.cornerRadius = 12
         btn.titleLabel?.font = .boldSystemFont(ofSize: 18)
-        btn.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
     }()
     
@@ -28,7 +27,7 @@ final class PanoramaReviewViewController: UIViewController {
         btn.backgroundColor = .systemRed
         btn.layer.cornerRadius = 12
         btn.titleLabel?.font = .boldSystemFont(ofSize: 18)
-        btn.heightAnchor.constraint(equalToConstant: 52).isActive = true
+        btn.translatesAutoresizingMaskIntoConstraints = false
         return btn
     }()
     
@@ -38,7 +37,10 @@ final class PanoramaReviewViewController: UIViewController {
         self.panorama = panorama
         super.init(nibName: nil, bundle: nil)
     }
-    required init?(coder: NSCoder) { fatalError("init(coder:) non implementato") }
+    
+    required init?(coder: NSCoder) { 
+        fatalError("init(coder:) non implementato") 
+    }
     
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -55,14 +57,24 @@ final class PanoramaReviewViewController: UIViewController {
     // MARK: - Setup Viewer
     private func setupViewer() {
         let viewer = PanoramaViewerViewController()
-        viewer.modalPresentationStyle = .overFullScreen
+        viewer.showCloseButton = false  
         
-        // 👉 passiamo l'immagine locale
-        if let data = panorama.jpegData(compressionQuality: 0.9) {
-            let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent("temp_panorama.jpg")
-            try? data.write(to: tmpURL)
+        let uniqueFilename = "panorama_\(UUID().uuidString).jpg"
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(uniqueFilename)
+        
+        do {
+            guard let data = panorama.jpegData(compressionQuality: 0.9) else {
+                print("❌ Errore: impossibile convertire panorama in JPEG")
+                showErrorAndDismiss("Impossibile elaborare il panorama.")
+                return
+            }
+            try data.write(to: tmpURL)
             viewer.panoramaImageURL = tmpURL
-            self.tempPanoramaURL = tmpURL  // ✅ Salva riferimento per pulizia
+            self.tempPanoramaURL = tmpURL
+        } catch {
+            print("❌ Errore salvataggio panorama temporaneo: \(error)")
+            showErrorAndDismiss("Impossibile salvare il panorama temporaneo.")
+            return
         }
         
         addChild(viewer)
@@ -84,6 +96,9 @@ final class PanoramaReviewViewController: UIViewController {
         view.addSubview(stack)
         
         NSLayoutConstraint.activate([
+            publishButton.heightAnchor.constraint(equalToConstant: 52),
+            retryButton.heightAnchor.constraint(equalToConstant: 52),
+            
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 30),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -30),
             stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -20)
@@ -95,7 +110,10 @@ final class PanoramaReviewViewController: UIViewController {
     
     // MARK: - Actions
     @objc private func handlePublish() {
-        // 🔄 Spinner + messaggio "Pubblicazione in corso"
+        // Disabilita i pulsanti durante l'upload
+        publishButton.isEnabled = false
+        retryButton.isEnabled = false
+        
         let alert = UIAlertController(title: nil, message: "Pubblicazione in corso…", preferredStyle: .alert)
         let spinner = UIActivityIndicatorView(style: .medium)
         spinner.translatesAutoresizingMaskIntoConstraints = false
@@ -103,48 +121,66 @@ final class PanoramaReviewViewController: UIViewController {
         alert.view.addSubview(spinner)
         
         NSLayoutConstraint.activate([
+            alert.view.heightAnchor.constraint(equalToConstant: 95),
             spinner.centerXAnchor.constraint(equalTo: alert.view.centerXAnchor),
             spinner.bottomAnchor.constraint(equalTo: alert.view.bottomAnchor, constant: -20)
         ])
         
         present(alert, animated: true)
         
-        ImageUploader.upload(image: panorama, to: propertyID) { result in
-            DispatchQueue.main.async {
-                alert.dismiss(animated: true) {
-                    switch result {
-                    case .success(_):
-                        let done = UIAlertController(title: "Pubblicato ✅",
-                                                     message: "Il tour è stato caricato correttamente.",
-                                                     preferredStyle: .alert)
-                        done.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-                            self.navigationController?.popToRootViewController(animated: true)
-                        })
-                        self.present(done, animated: true)
-                        
-                    case .failure(let error):
-                        let fail = UIAlertController(title: "Errore",
-                                                     message: error.localizedDescription,
-                                                     preferredStyle: .alert)
-                        fail.addAction(UIAlertAction(title: "OK", style: .default))
-                        self.present(fail, animated: true)
-                    }
+        ImageUploader.upload(image: panorama, to: propertyID) { [weak self] result in
+            guard let self = self else { return }
+            
+            alert.dismiss(animated: true) {
+                switch result {
+                case .success(_):
+                    let done = UIAlertController(
+                        title: "Pubblicato ✅",
+                        message: "Il tour è stato caricato correttamente.",
+                        preferredStyle: .alert
+                    )
+                    done.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+                        self.navigationController?.popToRootViewController(animated: true)
+                    })
+                    self.present(done, animated: true)
+                    
+                case .failure(let error):
+                    self.publishButton.isEnabled = true
+                    self.retryButton.isEnabled = true
+                    
+                    let fail = UIAlertController(
+                        title: "Errore",
+                        message: error.localizedDescription,
+                        preferredStyle: .alert
+                    )
+                    fail.addAction(UIAlertAction(title: "OK", style: .default))
+                    self.present(fail, animated: true)
                 }
             }
         }
     }
     
     @objc private func handleRetry() {
-        // 👉 Torna indietro al GuidedCapture per rifare gli scatti
         navigationController?.popViewController(animated: true)
     }
     
     // MARK: - Helpers
-
     private func cleanupTempFile() {
         if let url = tempPanoramaURL {
             try? FileManager.default.removeItem(at: url)
         }
+    }
+    
+    private func showErrorAndDismiss(_ message: String) {
+        let alert = UIAlertController(
+            title: "Errore",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { [weak self] _ in
+            self?.navigationController?.popViewController(animated: true)
+        })
+        present(alert, animated: true)
     }
 }
 
