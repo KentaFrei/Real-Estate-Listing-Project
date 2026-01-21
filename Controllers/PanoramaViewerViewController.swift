@@ -9,7 +9,6 @@ class PanoramaViewerViewController: UIViewController {
     
     var panoramaImageURL: URL?
     
-    /// ✅ FIX #18: Configurabile per nascondere il pulsante quando embedded
     var showCloseButton: Bool = true
     
     private let loadingIndicator: UIActivityIndicatorView = {
@@ -64,7 +63,6 @@ class PanoramaViewerViewController: UIViewController {
         loadingIndicator.startAnimating()
     }
     
-    // ✅ FIX #16: Usa Data(contentsOf:) per file locali invece di URLSession
     private func loadPanoramaFromURL() {
         guard let url = panoramaImageURL else {
             loadingIndicator.stopAnimating()
@@ -200,5 +198,6 @@ class PanoramaViewerViewController: UIViewController {
         present(alert, animated: true)
     }
 }
+
 
 
