@@ -11,7 +11,7 @@ final class HomeViewController: UIViewController,
     // MARK: UI — top filters
     private let searchBar: UISearchBar = {
         let sb = UISearchBar()
-        sb.placeholder = "Search"
+        sb.placeholder = "Cerca"
         sb.searchBarStyle = .minimal
         sb.translatesAutoresizingMaskIntoConstraints = false
         return sb
@@ -48,7 +48,7 @@ final class HomeViewController: UIViewController,
         return v
     }()
     
-    private let priceTitle = HomeViewController.makeCaptionLabel("Price range")
+    private let priceTitle = HomeViewController.makeCaptionLabel("Fascia di prezzo")
     private let priceSlider: UISlider = {
         let s = UISlider()
         s.minimumValue = 500_000
@@ -60,16 +60,16 @@ final class HomeViewController: UIViewController,
     private let priceMinLabel = HomeViewController.makeSmallMutedLabel("500K")
     private let priceMaxLabel = HomeViewController.makeSmallMutedLabel("2M")
     
-    private let roomsTitle = HomeViewController.makeCaptionLabel("Rooms")
+    private let roomsTitle = HomeViewController.makeCaptionLabel("Stanze")
     private let roomsSlider: UISlider = {
         let s = UISlider()
-        s.minimumValue = 0      // 0 = Any
-        s.maximumValue = 4      // 4 = 4+
+        s.minimumValue = 0
+        s.maximumValue = 4
         s.value = 0
         s.translatesAutoresizingMaskIntoConstraints = false
         return s
     }()
-    private let roomsValueLabel = HomeViewController.makeSmallMutedLabel("Any")
+    private let roomsValueLabel = HomeViewController.makeSmallMutedLabel("Tutte")
     
     // MARK: Collection
     private var collectionView: UICollectionView!
@@ -78,7 +78,7 @@ final class HomeViewController: UIViewController,
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
-        title = "Properties"
+        title = "Immobili"
         
         setupNavBarMenu()
         setupTopFilters()
@@ -222,28 +222,54 @@ final class HomeViewController: UIViewController,
     @objc private func roomsChanged() {
         let raw = Int(round(roomsSlider.value))
         roomsSlider.value = Float(raw)
-        roomsValueLabel.text = raw == 0 ? "Any" : (raw == 4 ? "4+" : "\(raw)")
+        roomsValueLabel.text = raw == 0 ? "Tutte" : (raw == 4 ? "4+" : "\(raw)")
     }
     
-    // MARK: Menu
     @objc private func openMenu() {
         let alert = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Dashboard", style: .default, handler: { [weak self] _ in
-            let vc = DashboardViewController()
-            self?.navigationController?.pushViewController(vc, animated: true)
-        }))
-        alert.addAction(UIAlertAction(title: "Logout", style: .destructive, handler: { _ in
-            UserDefaults.standard.removeObject(forKey: "authToken")
-            if let sceneDelegate = UIApplication.shared.connectedScenes.first?.delegate as? SceneDelegate {
-                sceneDelegate.window?.rootViewController = LoginViewController()
-                sceneDelegate.window?.makeKeyAndVisible()
-            }
-        }))
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        let isLoggedIn = UserDefaults.standard.string(forKey: "authToken") != nil
+        
+        if isLoggedIn {
+            alert.addAction(UIAlertAction(title: "Logout", style: .destructive) { [weak self] _ in
+                self?.handleLogout()
+            })
+        } else {
+            alert.addAction(UIAlertAction(title: "Accedi", style: .default) { [weak self] _ in
+                let loginVC = LoginViewController()
+                loginVC.modalPresentationStyle = .pageSheet
+                self?.present(loginVC, animated: true)
+            })
+            
+            alert.addAction(UIAlertAction(title: "Registrati", style: .default) { [weak self] _ in
+                let registerVC = RegisterViewController()
+                registerVC.modalPresentationStyle = .pageSheet
+                self?.present(registerVC, animated: true)
+            })
+        }
+        
+        alert.addAction(UIAlertAction(title: "Annulla", style: .cancel))
         
         if let pop = alert.popoverPresentationController, let barButton = navigationItem.rightBarButtonItem {
             pop.barButtonItem = barButton
         }
+        present(alert, animated: true)
+    }
+    
+    private func handleLogout() {
+        let alert = UIAlertController(
+            title: "Logout",
+            message: "Sei sicuro di voler uscire?",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Esci", style: .destructive) { _ in
+            UserDefaults.standard.removeObject(forKey: "authToken")
+            // Non serve cambiare schermata, l'utente può continuare a navigare
+        })
+        
+        alert.addAction(UIAlertAction(title: "Annulla", style: .cancel))
+        
         present(alert, animated: true)
     }
     
@@ -373,7 +399,6 @@ final class PropertyCell: UICollectionViewCell {
         titleLabel.text = property.title
         subtitleLabel.text = property.address
         
-        // Formatta il prezzo
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "it_IT")
