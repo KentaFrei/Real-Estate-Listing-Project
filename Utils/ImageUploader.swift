@@ -1,19 +1,51 @@
 import UIKit
 
+enum APIConfig {
+    static let baseURL = "https://realestate360-backend-vv8d.onrender.com"
+    
+    static func uploadURL(for propertyID: Int) -> URL? {
+        return URL(string: "\(baseURL)/api/properties/\(propertyID)/upload_image/")
+    }
+}
+
 struct ImageUploader {
+    
+    enum ImageUploaderError: LocalizedError {
+        case invalidPropertyID
+        case invalidURL
+        case imageConversionFailed
+        case invalidResponse
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidPropertyID:
+                return "ID proprietà non valido."
+            case .invalidURL:
+                return "URL non valido."
+            case .imageConversionFailed:
+                return "Impossibile convertire l'immagine."
+            case .invalidResponse:
+                return "Risposta del server non valida."
+            }
+        }
+    }
+    
     static func upload(image: UIImage,
                        to propertyID: Int,
                        completion: @escaping (Result<URL, Error>) -> Void) {
         
         guard propertyID > 0 else {
-            completion(.failure(NSError(domain: "InvalidPropertyID", code: -1)))
+            completion(.failure(ImageUploaderError.invalidPropertyID))
             return
         }
         
-        // 🔗 URL corretto
-        let urlString = "https://realestate360-backend-vv8d.onrender.com/api/properties/\(propertyID)/upload_image/"
-        guard let url = URL(string: urlString) else {
-            completion(.failure(NSError(domain: "InvalidURL", code: 0)))
+        guard let url = APIConfig.uploadURL(for: propertyID) else {
+            completion(.failure(ImageUploaderError.invalidURL))
+            return
+        }
+
+        guard let jpegData = image.jpegData(compressionQuality: 0.8) else {
+            completion(.failure(ImageUploaderError.imageConversionFailed))
             return
         }
 
@@ -21,12 +53,12 @@ struct ImageUploader {
         let boundary = UUID().uuidString
         var data = Data()
 
-        data.append("--\(boundary)\r\n".data(using: .utf8)!)
-        data.append("Content-Disposition: form-data; name=\"image\"; filename=\"panorama.jpg\"\r\n".data(using: .utf8)!)
-        data.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-        data.append(image.jpegData(compressionQuality: 0.8)!)
-        data.append("\r\n".data(using: .utf8)!)
-        data.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        data.appendString("--\(boundary)\r\n")
+        data.appendString("Content-Disposition: form-data; name=\"image\"; filename=\"panorama.jpg\"\r\n")
+        data.appendString("Content-Type: image/jpeg\r\n\r\n")
+        data.append(jpegData)
+        data.appendString("\r\n")
+        data.appendString("--\(boundary)--\r\n")
 
         APIClient.authorizedRequest(
             url: url,
@@ -38,8 +70,8 @@ struct ImageUploader {
             case .success(let responseData):
                 guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
                       let path = json["image_url"] as? String,
-                      let imageURL = URL(string: "https://realestate360-backend-vv8d.onrender.com" + path) else {
-                    completion(.failure(NSError(domain: "InvalidResponse", code: 1)))
+                      let imageURL = URL(string: APIConfig.baseURL + path) else {
+                    completion(.failure(ImageUploaderError.invalidResponse))
                     return
                 }
                 completion(.success(imageURL))
@@ -51,6 +83,13 @@ struct ImageUploader {
     }
 }
 
+extension Data {
+    mutating func appendString(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
+    }
+}
 
 
 
