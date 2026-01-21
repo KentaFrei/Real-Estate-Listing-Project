@@ -5,7 +5,6 @@ struct ImageUploader {
                        to propertyID: Int,
                        completion: @escaping (Result<URL, Error>) -> Void) {
         
-        // ✅ Validazione ID
         guard propertyID > 0 else {
             completion(.failure(NSError(domain: "InvalidPropertyID", code: -1)))
             return
@@ -29,17 +28,12 @@ struct ImageUploader {
         data.append("\r\n".data(using: .utf8)!)
         data.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
-        // 🔁 Upload con token
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-
-APIClient.authorizedRequest(
-    url: url,
-    method: "POST",
-    body: data,
-    contentType: "multipart/form-data; boundary=\(boundary)"
-) { result in
+        APIClient.authorizedRequest(
+            url: url,
+            method: "POST",
+            body: data,
+            contentType: "multipart/form-data; boundary=\(boundary)"
+        ) { result in
             switch result {
             case .success(let responseData):
                 guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
