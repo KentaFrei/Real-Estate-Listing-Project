@@ -33,6 +33,13 @@ class LoginViewController: UIViewController {
         button.setTitleColor(.systemBlue, for: .normal)
         return button
     }()
+    
+    private let spinner: UIActivityIndicatorView = {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.hidesWhenStopped = true
+        spinner.color = .white
+        return spinner
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -76,9 +83,13 @@ class LoginViewController: UIViewController {
             showAlert("Errore", "Inserisci username e password.")
             return
         }
+        
+        setLoadingState(true)
 
-        AuthAPI.login(username: username, password: password) { result in
+        AuthAPI.login(username: username, password: password) { [weak self] result in
             DispatchQueue.main.async {
+                self?.setLoadingState(false)
+                
                 switch result {
                 case .success(let token):
                     UserDefaults.standard.set(token, forKey: "authToken")
@@ -91,9 +102,29 @@ class LoginViewController: UIViewController {
                     }
 
                 case .failure(let error):
-                    self.showAlert("Login fallito", error.localizedDescription)
+                    self?.showAlert("Login fallito", error.localizedDescription)
                 }
             }
+        }
+    }
+    
+    private func setLoadingState(_ loading: Bool) {
+        loginButton.isEnabled = !loading
+        registerButton.isEnabled = !loading
+        
+        if loading {
+            loginButton.setTitle("", for: .normal)
+            spinner.translatesAutoresizingMaskIntoConstraints = false
+            loginButton.addSubview(spinner)
+            NSLayoutConstraint.activate([
+                spinner.centerXAnchor.constraint(equalTo: loginButton.centerXAnchor),
+                spinner.centerYAnchor.constraint(equalTo: loginButton.centerYAnchor)
+            ])
+            spinner.startAnimating()
+        } else {
+            spinner.stopAnimating()
+            spinner.removeFromSuperview()
+            loginButton.setTitle("Accedi", for: .normal)
         }
     }
 
