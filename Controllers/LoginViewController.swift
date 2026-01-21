@@ -2,7 +2,6 @@ import UIKit
 
 class LoginViewController: UIViewController {
 
-    // ✅ NUOVO: Callback per quando il login ha successo
     var onLoginSuccess: (() -> Void)?
     
     private let titleLabel: UILabel = {
@@ -165,7 +164,6 @@ class LoginViewController: UIViewController {
                 case .success(let token):
                     UserDefaults.standard.set(token, forKey: "authToken")
                     
-                    // ✅ NUOVA LOGICA: Controlla se c'è un callback
                     if let callback = self?.onLoginSuccess {
                         // Presentato modalmente per un'azione specifica
                         self?.dismiss(animated: true) {
@@ -233,3 +231,4 @@ class LoginViewController: UIViewController {
         present(alert, animated: true)
     }
 }
+
